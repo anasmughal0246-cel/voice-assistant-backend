@@ -1,10 +1,10 @@
-﻿const express = require('express');
+const express = require('express');
 const router = express.Router();
 const Groq = require('groq-sdk');
 const Conversation = require('../models/Conversation');
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const TEXT_MODEL = 'openai/gpt-oss-20b';
-const VISION_MODEL = 'meta-llama/llama-4-maverick-17b-128e-instruct';
+const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 const MAX_HISTORY_MESSAGES = 10;
 
 router.post('/chat', async (req, res) => {
@@ -40,7 +40,7 @@ router.post('/chat', async (req, res) => {
       }
       let pdfText = parsed.text || '';
       if (pdfText.trim().length < 20) {
-        currentContent = `The user uploaded a PDF named "${pdfName || 'document.pdf'}" but no readable text could be extracted from it — it is likely a scanned document or image-based PDF. Politely tell the user that this PDF appears to be scanned/image-based and text couldn't be extracted, and suggest they try a text-based PDF instead.`;
+        currentContent = `The user uploaded a PDF named "${pdfName || 'document.pdf'}" but no readable text could be extracted from it � it is likely a scanned document or image-based PDF. Politely tell the user that this PDF appears to be scanned/image-based and text couldn't be extracted, and suggest they try a text-based PDF instead.`;
       } else {
         if (pdfText.length > 15000) pdfText = pdfText.slice(0, 15000) + '\n...[truncated]';
         currentContent = `The user uploaded a PDF document named "${pdfName || 'document.pdf'}". Here is its extracted content:\n\n${pdfText}\n\nUser's question about this document: ${message || 'Summarize this document.'}`;
