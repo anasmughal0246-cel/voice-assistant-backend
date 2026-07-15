@@ -1,8 +1,11 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-  deviceId: { type: String, required: true, unique: true },
   name: { type: String, default: 'Guest' },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  password: { type: String },
+  googleId: { type: String },
+  isAdmin: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 
