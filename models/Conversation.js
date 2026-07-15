@@ -8,7 +8,8 @@ const messageSchema = new mongoose.Schema({
 
 const conversationSchema = new mongoose.Schema({
   userId: { type: String, required: true },
+  title: { type: String, default: 'New Chat' },
   messages: [messageSchema]
-});
+}, { timestamps: true }); // adds createdAt aur updatedAt automatically
 
 module.exports = mongoose.model('Conversation', conversationSchema);

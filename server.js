@@ -37,7 +37,8 @@ app.use(async (req, res, next) => {
     res.status(500).json({ error: 'Database connection failed' });
   }
 });
-
+const conversationRoutes = require('./routes/conversations');
+app.use('/api', conversationRoutes);
 app.use('/api', chatRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);

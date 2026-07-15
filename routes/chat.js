@@ -9,19 +9,37 @@ const MAX_HISTORY_MESSAGES = 10;
 
 router.post('/chat', async (req, res) => {
   try {
-    const { userId, message, image, pdfBase64, pdfName } = req.body;
+    const { userId, message, image, pdfBase64, pdfName, conversationId } = req.body;
     if (!userId || (!message && !image && !pdfBase64)) {
       return res.status(400).json({ error: 'userId and message are required' });
     }
-    let convo = await Conversation.findOne({ userId });
-    if (!convo) convo = new Conversation({ userId, messages: [] });
+
+    let convo;
+    let isNewConversation = false;
+
+    if (conversationId) {
+      convo = await Conversation.findOne({ _id: conversationId, userId });
+      if (!convo) return res.status(404).json({ error: 'Conversation not found' });
+    } else {
+      convo = new Conversation({ userId, messages: [] });
+      isNewConversation = true;
+    }
+
     const userLabel = pdfBase64 ? (message || `[PDF: ${pdfName || 'document'}]`) : (message || '[Image sent]');
     convo.messages.push({ role: 'user', text: userLabel });
+
+    if (isNewConversation) {
+      let title = userLabel.trim();
+      if (title.length > 40) title = title.slice(0, 40) + '...';
+      convo.title = title || 'New Chat';
+    }
+
     const recentMessages = convo.messages.slice(-(MAX_HISTORY_MESSAGES + 1), -1);
     const priorHistory = recentMessages.map(m => ({
       role: m.role === 'assistant' ? 'assistant' : 'user',
       content: m.text
     }));
+
     let currentContent;
     let modelToUse = TEXT_MODEL;
 
@@ -36,11 +54,11 @@ router.post('/chat', async (req, res) => {
         console.error('PDF parse failed:', pdfErr);
         convo.messages.push({ role: 'assistant', text: 'Sorry, I could not read this PDF. It may be a scanned or corrupted file. Please try a different one.' });
         await convo.save();
-        return res.json({ reply: 'Sorry, I could not read this PDF. It may be a scanned or corrupted file. Please try a different one.' });
+        return res.json({ reply: 'Sorry, I could not read this PDF. It may be a scanned or corrupted file. Please try a different one.', conversationId: convo._id, title: convo.title });
       }
       let pdfText = parsed.text || '';
       if (pdfText.trim().length < 20) {
-        currentContent = `The user uploaded a PDF named "${pdfName || 'document.pdf'}" but no readable text could be extracted from it — it is likely a scanned document or image-based PDF. Politely tell the user that this PDF appears to be scanned/image-based and text couldn't be extracted, and suggest they try a text-based PDF instead.`;
+        currentContent = `The user uploaded a PDF named "${pdfName || 'document.pdf'}" but no readable text could be extracted from it   it is likely a scanned document or image-based PDF. Politely tell the user that this PDF appears to be scanned/image-based and text couldn't be extracted, and suggest they try a text-based PDF instead.`;
       } else {
         if (pdfText.length > 15000) pdfText = pdfText.slice(0, 15000) + '\n...[truncated]';
         currentContent = `The user uploaded a PDF document named "${pdfName || 'document.pdf'}". Here is its extracted content:\n\n${pdfText}\n\nUser's question about this document: ${message || 'Summarize this document.'}`;
@@ -61,10 +79,12 @@ router.post('/chat', async (req, res) => {
       model: modelToUse,
       max_completion_tokens: 600
     });
+
     const reply = completion.choices[0].message.content;
     convo.messages.push({ role: 'assistant', text: reply });
     await convo.save();
-    res.json({ reply });
+
+    res.json({ reply, conversationId: convo._id, title: convo.title });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Something went wrong' });
