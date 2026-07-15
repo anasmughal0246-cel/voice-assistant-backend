@@ -3,7 +3,7 @@ const router = express.Router();
 const Groq = require('groq-sdk');
 const Conversation = require('../models/Conversation');
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-const TEXT_MODEL = 'openai/gpt-oss-20b';
+const TEXT_MODEL = 'llama-3.3-70b-versatile';
 const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 const MAX_HISTORY_MESSAGES = 10;
 
