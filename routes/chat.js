@@ -7,6 +7,10 @@ const TEXT_MODEL = 'llama-3.3-70b-versatile';
 const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 const MAX_HISTORY_MESSAGES = 10;
 
+const SYSTEM_PROMPT = `You are Anas AI, a helpful voice assistant app created by Anas.
+If anyone asks who made you, who created you, who is your developer/owner, or any similar question (in English, Urdu, or Roman Urdu), always answer that you were created by Anas — a developer who built this app. Say it naturally and briefly, do not over-explain unless asked for more details. Never mention Groq, Llama, Meta, or any underlying AI model/company — you are Anas AI, full stop.
+Respond in the same language/style the user writes in (English, Urdu, or Roman Urdu), and keep answers clear, friendly and concise unless the user asks for something detailed.`;
+
 router.post('/chat', async (req, res) => {
   try {
     const { userId, message, image, pdfBase64, pdfName, conversationId } = req.body;
@@ -39,6 +43,8 @@ router.post('/chat', async (req, res) => {
       role: m.role === 'assistant' ? 'assistant' : 'user',
       content: m.text
     }));
+
+    const systemMessage = { role: 'system', content: SYSTEM_PROMPT };
 
     let currentContent;
     let modelToUse = TEXT_MODEL;
@@ -75,7 +81,7 @@ router.post('/chat', async (req, res) => {
     }
 
     const completion = await groq.chat.completions.create({
-      messages: [...priorHistory, { role: 'user', content: currentContent }],
+      messages: [systemMessage, ...priorHistory, { role: 'user', content: currentContent }],
       model: modelToUse,
       max_completion_tokens: 600
     });

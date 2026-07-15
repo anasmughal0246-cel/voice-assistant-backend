@@ -4,6 +4,7 @@ const path = require('path');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const chatRoutes = require('./routes/chat');
+const conversationRoutes = require('./routes/conversations');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 
@@ -37,9 +38,10 @@ app.use(async (req, res, next) => {
     res.status(500).json({ error: 'Database connection failed' });
   }
 });
-const conversationRoutes = require('./routes/conversations');
+
 app.use('/api', conversationRoutes);
 app.use('/api', chatRoutes);
+app.use('/api', conversationRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 

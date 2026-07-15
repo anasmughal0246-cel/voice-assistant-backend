@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const Conversation = require('../models/Conversation');
 
-// GET /api/conversations?userId=xxx  -> sidebar list (sirf id, title, date -- messages nahi, taake fast rahe)
 router.get('/conversations', async (req, res) => {
   try {
     const { userId } = req.query;
@@ -10,7 +9,7 @@ router.get('/conversations', async (req, res) => {
 
     const conversations = await Conversation.find({ userId })
       .select('_id title createdAt updatedAt')
-      .sort({ updatedAt: -1 }); // sabse recent chat sabse upar
+      .sort({ updatedAt: -1 });
 
     res.json({ conversations });
   } catch (err) {
@@ -19,7 +18,6 @@ router.get('/conversations', async (req, res) => {
   }
 });
 
-// GET /api/conversations/:id?userId=xxx  -> ek specific chat khol na (poori messages ke sath)
 router.get('/conversations/:id', async (req, res) => {
   try {
     const { userId } = req.query;
@@ -33,7 +31,6 @@ router.get('/conversations/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/conversations/:id?userId=xxx
 router.delete('/conversations/:id', async (req, res) => {
   try {
     const { userId } = req.query;
