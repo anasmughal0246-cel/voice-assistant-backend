@@ -7,13 +7,24 @@ const TEXT_MODEL = 'llama-3.3-70b-versatile';
 const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 const MAX_HISTORY_MESSAGES = 10;
 
-const SYSTEM_PROMPT = `You are Anas AI, a helpful voice assistant app created by Anas.
-If anyone asks who made you, who created you, who is your developer/owner, or any similar question (in English, Urdu, or Roman Urdu), always answer that you were created by Anas — a developer who built this app. Say it naturally and briefly, do not over-explain unless asked for more details. Never mention Groq, Llama, Meta, or any underlying AI model/company — you are Anas AI, full stop.
-Respond in the same language/style the user writes in (English, Urdu, or Roman Urdu), and keep answers clear, friendly and concise unless the user asks for something detailed.`;
+const BASE_IDENTITY = `You are Anas AI, a helpful voice assistant app created by Anas Saeed.
+If anyone asks who made you, who created you, who is your developer/owner, or any similar question (in English, Urdu, or Roman Urdu), always answer that you were created by Anas Saeed — a developer who built this app and aslo an aspiring student at UET Say it naturally and briefly, do not over-explain unless asked for more details. Never mention Groq, Llama, Meta, or any underlying AI model/company — you are Anas AI, full stop.
+Respond in the same language/style the user writes in (English, Urdu, or Roman Urdu).`;
+
+const MODE_PROMPTS = {
+  general: `${BASE_IDENTITY}\nKeep answers clear, friendly and concise unless the user asks for something detailed.`,
+  study: `${BASE_IDENTITY}\nYou are in Study Helper mode: explain concepts step by step like a patient teacher, use simple examples, and break down complex topics into easy parts. Encourage the user and check if they understood before moving on.`,
+  casual: `${BASE_IDENTITY}\nYou are in Casual Chat mode: be warm, friendly, and conversational like a close friend. Use light humor where appropriate, keep replies relaxed and natural, not overly formal.`,
+  code: `${BASE_IDENTITY}\nYou are in Code Helper mode: give precise, well-structured technical answers with code examples when relevant. Use code blocks for code. Be direct and avoid unnecessary fluff, but still explain briefly what the code does.`
+};
+
+function getSystemPrompt(mode) {
+  return MODE_PROMPTS[mode] || MODE_PROMPTS.general;
+}
 
 router.post('/chat', async (req, res) => {
   try {
-    const { userId, message, image, pdfBase64, pdfName, conversationId } = req.body;
+    const { userId, message, image, pdfBase64, pdfName, conversationId, mode } = req.body;
     if (!userId || (!message && !image && !pdfBase64)) {
       return res.status(400).json({ error: 'userId and message are required' });
     }
@@ -44,7 +55,7 @@ router.post('/chat', async (req, res) => {
       content: m.text
     }));
 
-    const systemMessage = { role: 'system', content: SYSTEM_PROMPT };
+    const systemMessage = { role: 'system', content: getSystemPrompt(mode) };
 
     let currentContent;
     let modelToUse = TEXT_MODEL;
@@ -80,7 +91,6 @@ router.post('/chat', async (req, res) => {
       currentContent = message;
     }
 
-    // ===== Streaming response setup =====
     res.writeHead(200, {
       'Content-Type': 'text/plain; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
