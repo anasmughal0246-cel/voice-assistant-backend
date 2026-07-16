@@ -80,20 +80,72 @@ router.post('/chat', async (req, res) => {
       currentContent = message;
     }
 
-    const completion = await groq.chat.completions.create({
-      messages: [systemMessage, ...priorHistory, { role: 'user', content: currentContent }],
-      model: modelToUse,
-      max_completion_tokens: 600
+    // ===== Streaming response setup =====
+    res.writeHead(200, {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no'
     });
+    if (res.flushHeaders) res.flushHeaders();
 
-    const reply = completion.choices[0].message.content;
-    convo.messages.push({ role: 'assistant', text: reply });
-    await convo.save();
+    res.write(`data:meta:${JSON.stringify({ conversationId: convo._id, title: convo.title })}\n\n`);
 
-    res.json({ reply, conversationId: convo._id, title: convo.title });
+    let fullReply = '';
+    let clientDisconnected = false;
+
+    try {
+      const stream = await groq.chat.completions.create({
+        messages: [systemMessage, ...priorHistory, { role: 'user', content: currentContent }],
+        model: modelToUse,
+        max_completion_tokens: 600,
+        stream: true
+      });
+
+      for await (const chunk of stream) {
+        const token = chunk.choices?.[0]?.delta?.content || '';
+        if (token) {
+          fullReply += token;
+          try {
+            res.write(`data:chunk:${encodeURIComponent(token)}\n\n`);
+          } catch (writeErr) {
+            clientDisconnected = true;
+            break;
+          }
+        }
+      }
+    } catch (streamErr) {
+      console.error('Streaming error:', streamErr);
+      if (!res.writableEnded) {
+        try {
+          res.write(`data:error:${encodeURIComponent('Something went wrong while generating the response.')}\n\n`);
+        } catch (e) {}
+      }
+    }
+
+    if (fullReply) {
+      convo.messages.push({ role: 'assistant', text: fullReply });
+      try {
+        await convo.save();
+      } catch (saveErr) {
+        console.error('Failed to save conversation:', saveErr);
+      }
+    }
+
+    if (!clientDisconnected && !res.writableEnded) {
+      res.write(`data:done\n\n`);
+      res.end();
+    }
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Something went wrong' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Something went wrong' });
+    } else if (!res.writableEnded) {
+      try {
+        res.write(`data:error:${encodeURIComponent('Something went wrong')}\n\n`);
+        res.end();
+      } catch (e) {}
+    }
   }
 });
 
