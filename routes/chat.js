@@ -23,6 +23,33 @@ const MODE_PROMPTS = {
 function getSystemPrompt(mode) {
   return MODE_PROMPTS[mode] || MODE_PROMPTS.general;
 }
+function getSystemPrompt(mode) {
+  return MODE_PROMPTS[mode] || MODE_PROMPTS.general;
+}
+
+function detectImageGenPrompt(message) {
+  if (!message) return null;
+  const text = message.trim();
+  const lower = text.toLowerCase();
+
+  const englishPatterns = [
+    /^(?:please\s+)?(?:generate|create|make|draw|paint)\s+(?:an?\s+)?(?:image|photo|picture|pic|drawing|painting)\s*(?:of\s+)?(.*)/i,
+    /^(?:image|photo|picture|pic)\s+(?:of\s+)?(.*)/i
+  ];
+  for (const p of englishPatterns) {
+    const m = text.match(p);
+    if (m) return (m[1] || '').trim() || 'a beautiful image';
+  }
+
+  const hasImageWord = /(tasveer|tasvir|image|photo|picture)/i.test(lower);
+  const hasMakeWord = /(bana|banado|bana do|banaiye|banayen|banao)/i.test(lower);
+  if (hasImageWord && hasMakeWord) {
+    let rest = text.replace(/tasveer|tasvir|image|photo|picture|banado|bana do|banaiye|banayen|banao|bana/gi, '').trim();
+    return rest || text;
+  }
+
+  return null;
+}
 
 router.post('/chat', async (req, res) => {
   try {
@@ -59,7 +86,37 @@ router.post('/chat', async (req, res) => {
       if (title.length > 40) title = title.slice(0, 40) + '...';
       convo.title = title || 'New Chat';
     }
+     const imagePrompt = (!image && !pdfBase64) ? detectImageGenPrompt(message) : null;
 
+    if (imagePrompt) {
+      const encodedPrompt = encodeURIComponent(imagePrompt);
+      const seed = Math.floor(Math.random() * 1000000);
+      const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${seed}`;
+
+      res.writeHead(200, {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no'
+      });
+      if (res.flushHeaders) res.flushHeaders();
+
+      res.write(`data:meta:${JSON.stringify({ conversationId: convo._id, title: convo.title })}\n\n`);
+      res.write(`data:image:${encodeURIComponent(imageUrl)}\n\n`);
+
+      if (!vault) {
+        convo.messages.push({ role: 'assistant', text: `IMG::${imageUrl}` });
+        try {
+          await convo.save();
+        } catch (saveErr) {
+          console.error('Failed to save conversation:', saveErr);
+        }
+      }
+
+      res.write(`data:done\n\n`);
+      res.end();
+      return;
+    }
     const recentMessages = convo.messages.slice(-(MAX_HISTORY_MESSAGES + 1), -1);
     const priorHistory = recentMessages.map(m => ({
       role: m.role === 'assistant' ? 'assistant' : 'user',
