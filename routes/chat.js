@@ -26,7 +26,7 @@ function getSystemPrompt(mode) {
 
 router.post('/chat', async (req, res) => {
   try {
-    const { userId, message, image, pdfBase64, pdfName, conversationId, mode } = req.body;
+    const { userId, message, image, pdfBase64, pdfName, conversationId, mode, vault } = req.body;
     if (!userId || (!message && !image && !pdfBase64)) {
       return res.status(400).json({ error: 'userId and message are required' });
     }
@@ -34,13 +34,22 @@ router.post('/chat', async (req, res) => {
     let convo;
     let isNewConversation = false;
 
-    if (conversationId) {
+    if (vault) {
+      convo = new Conversation({ userId, messages: [] });
+      isNewConversation = false;
+    } else if (conversationId) {
       convo = await Conversation.findOne({ _id: conversationId, userId });
       if (!convo) return res.status(404).json({ error: 'Conversation not found' });
     } else {
       convo = new Conversation({ userId, messages: [] });
       isNewConversation = true;
     }
+
+
+
+
+
+
 
     const userLabel = pdfBase64 ? (message || `[PDF: ${pdfName || 'document'}]`) : (message || '[Image sent]');
     convo.messages.push({ role: 'user', text: userLabel });
@@ -135,7 +144,7 @@ router.post('/chat', async (req, res) => {
       }
     }
 
-    if (fullReply) {
+    if (fullReply && !vault) {
       convo.messages.push({ role: 'assistant', text: fullReply });
       try {
         await convo.save();
