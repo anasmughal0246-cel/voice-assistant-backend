@@ -9,6 +9,7 @@ const chatRoutes = require('./routes/chat');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const profileRoutes = require('./routes/profile');
+const conversationRoutes = require('./routes/conversations');
 const app = express();
 app.set('trust proxy', 1);
 app.use(cors());
@@ -31,6 +32,7 @@ const authLimiter = rateLimit({
 app.use('/api/chat', chatLimiter);
 app.use('/api/auth', authLimiter);
 app.use('/api', chatRoutes);
+app.use('/api', conversationRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);
