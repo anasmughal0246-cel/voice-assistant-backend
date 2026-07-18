@@ -3,6 +3,7 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const mongoose = require('mongoose');
+mongoose.set('bufferTimeoutMS', 30000);
 const rateLimit = require('express-rate-limit');
 const chatRoutes = require('./routes/chat');
 const authRoutes = require('./routes/auth');
