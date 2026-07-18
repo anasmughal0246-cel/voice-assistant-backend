@@ -13,10 +13,22 @@ router.get('/users', requireAdmin, async (req, res) => {
   }
 });
 
-router.get('/conversations/:userId', requireAdmin, async (req, res) => {
+router.get('/users/:userId/conversations', requireAdmin, async (req, res) => {
   try {
-    const convo = await Conversation.findOne({ userId: req.params.userId });
-    res.json({ messages: convo ? convo.messages : [] });
+    const conversations = await Conversation.find({ userId: req.params.userId })
+      .select('_id title createdAt updatedAt')
+      .sort({ updatedAt: -1 });
+    res.json({ conversations });
+  } catch (err) {
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+router.get('/conversation/:id', requireAdmin, async (req, res) => {
+  try {
+    const convo = await Conversation.findById(req.params.id);
+    if (!convo) return res.status(404).json({ error: 'Conversation not found' });
+    res.json({ conversation: convo });
   } catch (err) {
     res.status(500).json({ error: 'Something went wrong' });
   }

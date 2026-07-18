@@ -99,10 +99,12 @@ router.post('/google', async (req, res) => {
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-    res.json({
-      token,
-      user: { id: user._id, name: user.name, email: user.email }
-    });
+   res.json({
+  token,
+  user: { id: user._id, name: user.name, email: user.email, isAdmin: user.isAdmin || false }
+}); 
+
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Google sign-in failed' });
