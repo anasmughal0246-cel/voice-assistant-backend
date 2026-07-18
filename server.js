@@ -7,7 +7,7 @@ const rateLimit = require('express-rate-limit');
 const chatRoutes = require('./routes/chat');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
-
+const profileRoutes = require('./routes/profile');
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '20mb' }));
@@ -35,7 +35,7 @@ app.use('/api/auth', authLimiter);
 app.use('/api', chatRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
-
+app.use('/api/profile', profileRoutes);
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
