@@ -33,12 +33,11 @@ router.post('/chat', async (req, res) => {
   let streamStarted = false;
 
   try {
-    const { userId, message, image, pdfBase64, pdfName, conversationId, mode } = req.body;
+const { userId, message, image, pdfBase64, pdfName, conversationId, mode, editIndex } = req.body;
     if (!userId || (!message && !image && !pdfBase64)) {
       return res.status(400).json({ error: 'userId and message are required' });
     }
-
-    let isNewConversation = false;
+let isNewConversation = false;
 
     if (conversationId) {
       convo = await Conversation.findOne({ _id: conversationId, userId });
@@ -48,8 +47,15 @@ router.post('/chat', async (req, res) => {
       isNewConversation = true;
     }
 
+    if (typeof editIndex === 'number' && editIndex >= 0 && editIndex < convo.messages.length) {
+      convo.messages = convo.messages.slice(0, editIndex);
+    }
+
     const userLabel = pdfBase64 ? (message || `[PDF: ${pdfName || 'document'}]`) : (message || '[Image sent]');
     convo.messages.push({ role: 'user', text: userLabel });
+  
+
+
 
     if (isNewConversation) {
       let title = userLabel.trim();
