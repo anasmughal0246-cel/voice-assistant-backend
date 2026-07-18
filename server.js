@@ -12,7 +12,6 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
-
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
@@ -20,7 +19,6 @@ const chatLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false
 });
-
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 15,
@@ -28,10 +26,8 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false
 });
-
 app.use('/api/chat', chatLimiter);
 app.use('/api/auth', authLimiter);
-
 app.use('/api', chatRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
@@ -39,35 +35,39 @@ app.use('/api/profile', profileRoutes);
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
-
 app.get('/', (req, res) => {
   res.send('Voice assistant backend is running.');
 });
-
 let isConnected = false;
 async function connectDB() {
-  if (isConnected) return;
+  if (mongoose.connection.readyState === 1) {
+    isConnected = true;
+    return true;
+  }
   try {
     await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 10000,
       maxPoolSize: 10
     });
     isConnected = true;
     console.log('MongoDB connected');
+    return true;
   } catch (err) {
+    isConnected = false;
     console.error('MongoDB connection error:', err);
+    return false;
   }
 }
-
 app.use(async (req, res, next) => {
-  await connectDB();
+  const connected = await connectDB();
+  if (!connected) {
+    return res.status(503).json({ error: 'Database unavailable, please try again shortly.' });
+  }
   next();
 });
-
 const PORT = process.env.PORT || 3000;
 if (require.main === module) {
   connectDB();
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
-
 module.exports = app;
