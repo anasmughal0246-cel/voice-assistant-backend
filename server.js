@@ -5,16 +5,50 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 mongoose.set('bufferTimeoutMS', 30000);
 const rateLimit = require('express-rate-limit');
+
 const chatRoutes = require('./routes/chat');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const profileRoutes = require('./routes/profile');
 const conversationRoutes = require('./routes/conversations');
+
 const app = express();
 app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+let isConnected = false;
+async function connectDB() {
+  if (mongoose.connection.readyState === 1) {
+    isConnected = true;
+    return true;
+  }
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 45000,
+      maxPoolSize: 10
+    });
+    isConnected = true;
+    console.log('MongoDB connected');
+    return true;
+  } catch (err) {
+    isConnected = false;
+    console.error('MongoDB connection error:', err);
+    return false;
+  }
+}
+
+// IMPORTANT: This must run BEFORE any route below, so every request waits for DB connection first.
+app.use(async (req, res, next) => {
+  const connected = await connectDB();
+  if (!connected) {
+    return res.status(503).json({ error: 'Database unavailable, please try again shortly.' });
+  }
+  next();
+});
+
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
@@ -29,48 +63,23 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false
 });
+
 app.use('/api/chat', chatLimiter);
 app.use('/api/auth', authLimiter);
+
 app.use('/api', chatRoutes);
 app.use('/api', conversationRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);
+
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 app.get('/', (req, res) => {
   res.send('Voice assistant backend is running.');
 });
-let isConnected = false;
-async function connectDB() {
-  if (mongoose.connection.readyState === 1) {
-    isConnected = true;
-    return true;
-  }
-  try {
-    await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 30000,
-      socketTimeoutMS: 45000,
-      maxPoolSize: 10
-    });
 
-    isConnected = true;
-    console.log('MongoDB connected');
-    return true;
-  } catch (err) {
-    isConnected = false;
-    console.error('MongoDB connection error:', err);
-    return false;
-  }
-}
-app.use(async (req, res, next) => {
-  const connected = await connectDB();
-  if (!connected) {
-    return res.status(503).json({ error: 'Database unavailable, please try again shortly.' });
-  }
-  next();
-});
 const PORT = process.env.PORT || 3000;
 if (require.main === module) {
   connectDB();
