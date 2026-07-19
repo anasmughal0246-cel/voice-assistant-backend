@@ -5,8 +5,9 @@ const Conversation = require('../models/Conversation');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-const TEXT_MODEL = 'llama-3.3-70b-versatile';
-const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+
+const TEXT_MODEL = 'openai/gpt-oss-120b';
+const VISION_MODEL = 'qwen/qwen3.6-27b';
 const MAX_HISTORY_MESSAGES = 10;
 
 const BASE_IDENTITY = `You are Anas AI, a helpful voice assistant app created by Anas.
