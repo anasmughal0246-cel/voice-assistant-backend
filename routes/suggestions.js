@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Groq = require('groq-sdk');
-const groq = new Groq({ apiKey: process.env.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 });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 router.post('/suggestions', async (req, res) => {
   try {
