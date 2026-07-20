@@ -11,7 +11,7 @@ const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const profileRoutes = require('./routes/profile');
 const conversationRoutes = require('./routes/conversations');
-
+const suggestionsRoutes = require('./routes/suggestions');
 const app = express();
 app.set('trust proxy', 1);
 app.use(cors());
@@ -69,6 +69,7 @@ app.use('/api/auth', authLimiter);
 
 app.use('/api', chatRoutes);
 app.use('/api', conversationRoutes);
+app.use('/api', suggestionsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);

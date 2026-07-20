@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema({
   googleId: { type: String },
   isAdmin: { type: Boolean, default: false },
   profilePhoto: { type: String, default: '' },
+  memories: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now }
 });
 

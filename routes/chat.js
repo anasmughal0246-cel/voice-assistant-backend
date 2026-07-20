@@ -5,16 +5,15 @@ const Conversation = require('../models/Conversation');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
 const TEXT_MODEL = 'openai/gpt-oss-120b';
 const VISION_MODEL = 'qwen/qwen3.6-27b';
 const MAX_HISTORY_MESSAGES = 10;
+
 const BASE_IDENTITY = `You are Anas AI, a helpful voice assistant app created by Anas.
-Only mention your name (Anas AI) or your creator (Anas saeed) if the user explicitly asks a direct question like "who made you", "who are you", "who created you", or similar identity questions. In all other conversations, do NOT bring up your name, your creator, or your identity unprompted — just answer the question naturally like a normal helpful assistant would, without self-introduction or repeating "As Anas AI..." or similar phrases. Never mention Groq, Llama, Meta, or any underlying AI model/company.
+Only mention your name (Anas AI) or your creator (Anas) if the user explicitly asks a direct question like "who made you", "who are you", "who created you", or similar identity questions. In all other conversations, do NOT bring up your name, your creator, or your identity unprompted — just answer the question naturally like a normal helpful assistant would, without self-introduction or repeating "As Anas AI..." or similar phrases. Never mention Groq, Llama, Meta, or any underlying AI model/company.
 Respond in the same language/style the user writes in (English, Urdu, or Roman Urdu).
 Format your responses the way a modern AI assistant (like Claude or ChatGPT) would: use **bold** for key terms, ## or ### headings to break up longer answers into clear sections, and numbered or bulleted lists whenever you're explaining steps, options, or multiple points. Prefer structuring an answer into a few well-organized sections over one long paragraph, even for moderately detailed replies. Fenced code blocks with a language tag (e.g. \`\`\`python) for any code. Keep formatting proportional to length — a quick one-line answer doesn't need headings, but anything more than 2-3 sentences usually benefits from some structure.
 Use emojis naturally and moderately throughout your responses (not just at the start) to add warmth and personality — similar to how ChatGPT does it — but don't overdo it or force them where they don't fit.`;
-
 
 const MODE_PROMPTS = {
   general: `${BASE_IDENTITY}\nKeep answers clear, friendly and concise unless the user asks for something detailed.`,
@@ -23,12 +22,36 @@ const MODE_PROMPTS = {
   code: `${BASE_IDENTITY}\nYou are in Code Helper mode: give precise, well-structured technical answers with code examples when relevant. Use code blocks for code. Be direct and avoid unnecessary fluff, but still explain briefly what the code does.`
 };
 
-function getSystemPrompt(mode, userName) {
+function getSystemPrompt(mode, userName, memories) {
   let prompt = MODE_PROMPTS[mode] || MODE_PROMPTS.general;
   if (userName) {
     prompt += `\nThe user's name is ${userName}. Address them by their name naturally and occasionally (not every message) to make the conversation feel personal and warm, especially at the start of a conversation or when it fits naturally.`;
   }
+  if (memories && memories.length > 0) {
+    prompt += `\n\nHere are some things you remember about this user from past conversations:\n` + memories.map(m => `- ${m}`).join('\n') + `\nUse this context naturally when relevant, but don't force it into every reply.`;
+  }
   return prompt;
+}
+
+async function maybeExtractMemory(userId, userMsg) {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(userId)) return;
+    if (!userMsg || userMsg.length < 3) return;
+    const extractPrompt = `User said: "${userMsg}"\nIf this message reveals a lasting fact, preference, or detail about the user worth remembering for future conversations (e.g. their interests, job, ongoing project, preferences, name), respond with ONLY that fact in one short sentence (under 15 words). If there is nothing worth remembering, respond with exactly: NONE`;
+    const completion = await groq.chat.completions.create({
+      messages: [{ role: 'user', content: extractPrompt }],
+      model: TEXT_MODEL,
+      max_completion_tokens: 40
+    });
+    const fact = (completion.choices?.[0]?.message?.content || '').trim();
+    if (fact && fact.toUpperCase() !== 'NONE' && fact.length < 150) {
+      await User.findByIdAndUpdate(userId, {
+        $push: { memories: { $each: [fact], $slice: -20 } }
+      });
+    }
+  } catch (err) {
+    console.error('Memory extraction failed:', err.message);
+  }
 }
 
 router.post('/chat', async (req, res) => {
@@ -36,11 +59,12 @@ router.post('/chat', async (req, res) => {
   let streamStarted = false;
 
   try {
-const { userId, message, image, pdfBase64, pdfName, conversationId, mode, editIndex } = req.body;
+    const { userId, message, image, pdfBase64, pdfName, conversationId, mode } = req.body;
     if (!userId || (!message && !image && !pdfBase64)) {
       return res.status(400).json({ error: 'userId and message are required' });
     }
-let isNewConversation = false;
+
+    let isNewConversation = false;
 
     if (conversationId) {
       convo = await Conversation.findOne({ _id: conversationId, userId });
@@ -50,15 +74,8 @@ let isNewConversation = false;
       isNewConversation = true;
     }
 
-    if (typeof editIndex === 'number' && editIndex >= 0 && editIndex < convo.messages.length) {
-      convo.messages = convo.messages.slice(0, editIndex);
-    }
-
-const userLabel = pdfBase64 ? (message || `[PDF: ${pdfName || 'document'}]`) : (message || '[Image sent]');
-convo.messages.push({ role: 'user', text: userLabel, image: image || null });
-  
-
-
+    const userLabel = pdfBase64 ? (message || `[PDF: ${pdfName || 'document'}]`) : (message || '[Image sent]');
+    convo.messages.push({ role: 'user', text: userLabel, image: image || null });
 
     if (isNewConversation) {
       let title = userLabel.trim();
@@ -73,18 +90,20 @@ convo.messages.push({ role: 'user', text: userLabel, image: image || null });
     }));
 
     let userName = null;
+    let userMemories = [];
     if (mongoose.Types.ObjectId.isValid(userId)) {
       try {
-        const userDoc = await User.findById(userId).select('name');
-        if (userDoc && userDoc.name && userDoc.name !== 'Guest') {
-          userName = userDoc.name;
+        const userDoc = await User.findById(userId).select('name memories');
+        if (userDoc) {
+          if (userDoc.name && userDoc.name !== 'Guest') userName = userDoc.name;
+          userMemories = userDoc.memories || [];
         }
       } catch (e) {
-        console.error('User name lookup failed:', e.message);
+        console.error('User lookup failed:', e.message);
       }
     }
 
-    const systemMessage = { role: 'system', content: getSystemPrompt(mode, userName) };
+    const systemMessage = { role: 'system', content: getSystemPrompt(mode, userName, userMemories) };
 
     let currentContent;
     let modelToUse = TEXT_MODEL;
@@ -139,8 +158,6 @@ convo.messages.push({ role: 'user', text: userLabel, image: image || null });
 
     try {
       if (isVisionRequest) {
-        // Vision model: non-streaming call (Groq vision models may not support streaming reliably),
-        // then send the full reply as a single chunk so the frontend still displays it normally.
         const completion = await groq.chat.completions.create({
           messages: [systemMessage, ...priorHistory, { role: 'user', content: currentContent }],
           model: modelToUse,
@@ -187,6 +204,7 @@ convo.messages.push({ role: 'user', text: userLabel, image: image || null });
       } catch (saveErr) {
         console.error('Failed to save conversation:', saveErr.message);
       }
+      if (message) maybeExtractMemory(userId, message);
     }
 
     if (!clientDisconnected && !res.writableEnded) {
