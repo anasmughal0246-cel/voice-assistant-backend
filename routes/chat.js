@@ -54,8 +54,8 @@ let isNewConversation = false;
       convo.messages = convo.messages.slice(0, editIndex);
     }
 
-    const userLabel = pdfBase64 ? (message || `[PDF: ${pdfName || 'document'}]`) : (message || '[Image sent]');
-    convo.messages.push({ role: 'user', text: userLabel });
+const userLabel = pdfBase64 ? (message || `[PDF: ${pdfName || 'document'}]`) : (message || '[Image sent]');
+convo.messages.push({ role: 'user', text: userLabel, image: image || null });
   
 
 
